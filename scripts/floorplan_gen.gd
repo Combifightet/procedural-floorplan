@@ -407,9 +407,6 @@ func simplyfy_polygon(polygon: Array[Vector2]) -> Array[Vector2]:
 		var outgoing_vec: Vector2 = next_point-point
 		outgoing_vec = outgoing_vec.normalized()
 		
-		print('---------------------------')
-		print('incoming_vec: ', incoming_vec)
-		print('outgoing_vec: ', outgoing_vec)
 		if not incoming_vec.is_equal_approx(outgoing_vec):
 			simple_polygon.append(point)
 		incoming_vec = outgoing_vec
