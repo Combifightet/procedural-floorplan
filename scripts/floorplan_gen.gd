@@ -413,3 +413,9 @@ func simplyfy_polygon(polygon: Array[Vector2]) -> Array[Vector2]:
 		point = next_point
 	
 	return simple_polygon
+
+
+### Internal building layout
+
+
+
