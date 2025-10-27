@@ -10,7 +10,11 @@ var vectors: Array[Vector2] = []
 var original_points: Array[Vector2] = [] # To store the points on the circle
 var original_directions: Array[Vector2] = [] # To store the outgoing directions
 
+# Floor plan generation
+var floor_plan_grid: FloorPlanGrid = null
+
 var button: Button
+var generate_floorplan_button: Button
 var vertex_slider: HSlider
 var random_slider: HSlider
 var vertex_label: Label
@@ -48,6 +52,13 @@ func _ready() -> void:
 	button.size = Vector2(180, 40)
 	button.pressed.connect(_on_regenerate_button_pressed)
 	ui_container.add_child(button)
+	
+	# Create floor plan generation button
+	generate_floorplan_button = Button.new()
+	generate_floorplan_button.text = "Generate Floor Plan"
+	generate_floorplan_button.size = Vector2(180, 40)
+	generate_floorplan_button.pressed.connect(_on_generate_floorplan_pressed)
+	ui_container.add_child(generate_floorplan_button)
 	
 	# Create label for slider
 	vertex_label = Label.new()
@@ -100,10 +111,11 @@ func _process(_delta: float) -> void:
 		
 		# Position UI elements
 		button.position = Vector2(0, 0)
-		vertex_label.position = Vector2(0, 50)
-		vertex_slider.position = Vector2(0, 80)
-		random_label.position = Vector2(0, 130)
-		random_slider.position = Vector2(0, 160)
+		generate_floorplan_button.position = Vector2(0, 50)
+		vertex_label.position = Vector2(0, 100)
+		vertex_slider.position = Vector2(0, 130)
+		random_label.position = Vector2(0, 180)
+		random_slider.position = Vector2(0, 210)
 
 func randf_r(randomness: float) -> float:
 	randomness = clamp(randomness, 0, 1)
@@ -112,6 +124,41 @@ func randf_r(randomness: float) -> float:
 func _on_regenerate_button_pressed() -> void:
 	randomize()
 	generate_new_polygon()
+
+func _on_generate_floorplan_pressed() -> void:
+	if vectors.size() < 3:
+		print("Cannot generate floor plan: polygon needs at least 3 vertices")
+		return
+	
+	# Create floor plan grid from the building outline
+	floor_plan_grid = FloorPlanGrid.from_points(vectors, float(grid_scale))
+	
+	if floor_plan_grid == null:
+		print("Failed to create floor plan grid")
+		return
+	
+	# Define rooms to place (room IDs)
+	var rooms: Array[int] = [1, 2, 3, 4]
+	
+	# Define target area ratios for each room
+	var room_ratios: Dictionary = {
+		1: 0.3,  # 30% of area
+		2: 0.25, # 25% of area
+		3: 0.25, # 25% of area
+		4: 0.2   # 20% of area
+	}
+	
+	# Generate the floor plan
+	# TODO: randomly generate a number of rooms
+	floor_plan_grid.generate_floor_plan(rooms, room_ratios)
+	
+	# Print debug output
+	print("\n=== Floor Plan Generated ===")
+	floor_plan_grid.print_grid()
+	print("============================\n")
+	
+	# Trigger redraw to show the floor plan
+	queue_redraw()
 
 func _on_vertex_slider_changed(value: float) -> void:
 	vertices = int(value)
@@ -130,6 +177,10 @@ func generate_new_polygon() -> void:
 	vectors = generate_building_outline()
 	vectors = simplyfy_polygon(vectors)
 	# center_polygon() # Removed auto-centering as requested
+	
+	# Clear floor plan when polygon changes
+	floor_plan_grid = null
+	
 	queue_redraw()
 
 func _draw() -> void:
@@ -148,8 +199,8 @@ func _draw() -> void:
 		var buffer = grid_scale * 2 # Added a bit more buffer
 		
 		# Find the nearest grid-aligned start and end points
-		var start_x = floor((top_left.x - buffer) / grid_scale) * grid_scale
-		var start_y = floor((top_left.y - buffer) / grid_scale) * grid_scale
+		var start_x = floor((top_left.x  - buffer) / grid_scale) * grid_scale
+		var start_y = floor((top_left.y  - buffer) / grid_scale) * grid_scale
 		var end_x = ceil((bottom_right.x + buffer) / grid_scale) * grid_scale
 		var end_y = ceil((bottom_right.y + buffer) / grid_scale) * grid_scale
 		
@@ -164,10 +215,19 @@ func _draw() -> void:
 				y += grid_scale
 			x += grid_scale
 	
+	# --- Draw the generation circle ---
+	# Draw a thin grey circle outline
+	draw_arc(Vector2.ZERO, radius, 0, TAU, 64, Color(0.5, 0.5, 0.5, 0.5), 2.0, true)
+	
+	# --- Draw the floor plan grid if it exists ---
+	if floor_plan_grid != null:
+		_draw_floor_plan()
+	
 	# --- Draw the final generated polygon ---
 	if vectors.size() > 2:
-		# Draw filled polygon
-		draw_colored_polygon(vectors, Color(0.3, 0.5, 0.8, 0.7))
+		# Draw filled polygon with transparency if floor plan exists
+		var poly_alpha = 0.3 if floor_plan_grid != null else 0.7
+		draw_colored_polygon(vectors, Color(0.3, 0.5, 0.8, poly_alpha))
 		
 		# Draw outline
 		for i in range(vectors.size()):
@@ -177,10 +237,7 @@ func _draw() -> void:
 		# Draw vertices as dots
 		for point in vectors:
 			draw_circle(point, 4.0, Color(1.0, 0.3, 0.3)) # Red dots
-			
-	# --- Draw the generation circle ---
-	# Draw a thin grey circle outline
-	draw_arc(Vector2.ZERO, radius, 0, TAU, 64, Color(0.5, 0.5, 0.5, 0.5), 2.0, true)
+
 
 	# --- Draw the original points and their indices ---
 	if original_points.size() > 0:
@@ -222,6 +279,45 @@ func _draw() -> void:
 					var arrow_tip_2 = end_point + dir_vec.rotated(PI - arrowhead_angle) * arrowhead_length
 					draw_line(end_point, arrow_tip_2, arrow_color, 2.0)
 
+func _draw_floor_plan() -> void:
+	if floor_plan_grid == null:
+		return
+	
+	var rooms: Array[int] = floor_plan_grid.get_rooms()
+	var room_count: float = rooms.size()
+	
+	# Calculate the bounding box to get the offset
+	var min_x = INF
+	var min_y = INF
+	for point in vectors:
+		min_x = min(min_x, point.x)
+		min_y = min(min_y, point.y)
+	
+	# Draw each cell
+	for y in range(floor_plan_grid.height):
+		for x in range(floor_plan_grid.width):
+			var cell = floor_plan_grid.get_cell(x, y)
+			
+			if cell.is_outside():
+				continue
+			
+			# Calculate world position
+			var world_x = min_x + x * grid_scale
+			var world_y = min_y + y * grid_scale
+			var cell_pos = Vector2(world_x, world_y)
+			
+			# Draw cell based on room
+			if cell.is_empty():
+				# Draw empty cells as light gray
+				draw_rect(Rect2(cell_pos, Vector2(grid_scale, grid_scale)), Color(1.0, 0.0, 1.0, 1.0))
+			else:
+				# Draw room cells with their respective colors
+				var color: Color = Color.from_ok_hsl(rooms.find(cell.room_id)/room_count, 0.8, 0.6, 0.8)
+				draw_rect(Rect2(cell_pos, Vector2(grid_scale, grid_scale)), color)
+				
+				# Draw cell border
+				draw_rect(Rect2(cell_pos, Vector2(grid_scale, grid_scale)), Color.BLACK, false, 1.0)
+
 
 func _get_invalid_dir(vec: Vector2) -> Direction:
 	var invalid_dir: Direction
@@ -243,27 +339,19 @@ func _get_rand_valid_travel_direction(vec: Vector2, incoming_dir: int = -1) -> D
 	if invalid_dir_2==invalid_dir:
 		invalid_dir_2 = _get_invalid_dir(vec.rotated(-2*PI/16))
 
-	print('vec: ', vec)
-	print('  -> incoming_dir:', incoming_dir)
-	print('  -> invalid_dir: ', invalid_dir)
-	print('  -> invalid_dir_2: ', invalid_dir_2)
-	
 	var output_dir: Direction
 	if incoming_dir == -1:
 		@warning_ignore("integer_division") 
 		output_dir = (invalid_dir+len(Direction)/2)%len(Direction) as Direction
 	else:
 		output_dir = randi_range(0, len(Direction)-1) as Direction
-	print('    -> output_dir: ', output_dir)
 	# flip direction if it is invalid
 	if output_dir == invalid_dir:
 		@warning_ignore("integer_division") 
 		output_dir = (output_dir+len(Direction)/2)%len(Direction)  as Direction
-		print('    -> output_dir: ', output_dir, ' (flipped)')
 	if invalid_dir_2!=invalid_dir and output_dir == invalid_dir_2:
 		@warning_ignore("integer_division") 
 		output_dir = (output_dir+len(Direction)/2)%len(Direction)  as Direction
-		print('    -> output_dir: ', output_dir, ' (flipped_2)')
 		
 	# if selected output direction is the input direction rotate input clockwise untill not inside the invalid_dir
 	@warning_ignore("integer_division") 
@@ -271,7 +359,6 @@ func _get_rand_valid_travel_direction(vec: Vector2, incoming_dir: int = -1) -> D
 		# assert(len(Direction)>=3, "Need at least 3 directions or this might be a `while true:` loop")
 		while true:
 			output_dir = (output_dir+1)%len(Direction) as Direction
-			print('    -> output_dir: ', output_dir, ' (rotated)')
 			@warning_ignore("integer_division") 
 			if output_dir!=invalid_dir and output_dir!=invalid_dir_2 and output_dir!=(incoming_dir+len(Direction)/2)%len(Direction):
 				break
@@ -279,34 +366,22 @@ func _get_rand_valid_travel_direction(vec: Vector2, incoming_dir: int = -1) -> D
 	return output_dir
 
 func _get_connection_points(point_a: Vector2, point_b: Vector2, start_direction: Vector2) -> Array[Vector2]:
-	print('  -> _get_connection_points(')
-	print('         point_a: ', point_a)
-	print('         point_b: ', point_b)
-	print('         start_direction: ', start_direction)
-	print('     )')
-	var simple_connection: bool = start_direction.x*(point_b.x-point_a.x) > 0 or start_direction.y*(point_b.y-point_a.y) > 0
-	
-	var result: Array[Vector2]
-	
-	print('    -> simple_connection: ', simple_connection)
-	
-	if simple_connection:
-		result = [
+	# cheack weather the connection needs zero, one or two intermediate points and return them
+	if is_equal_approx(point_a.x, point_b.x) or is_equal_approx(point_a.y, point_b.y):
+		return []
+	elif start_direction.x*(point_b.x-point_a.x) > 0 or start_direction.y*(point_b.y-point_a.y) > 0:
+		return [
 			Vector2(
-				point_a + Vector2((point_b.x-point_a.x) * abs(start_direction.x), (point_b.y-point_a.y) * abs(start_direction.y))
+				point_a + Vector2((point_b.x-point_a.x) * abs(start_direction.x),
+				(point_b.y-point_a.y) * abs(start_direction.y))
 			)
 		]
 	else:
-		result = [
-			Vector2(
-				point_a - Vector2((point_b.x-point_a.x) * abs(start_direction.x), (point_b.y-point_a.y) * abs(start_direction.y))
-			)
-		]
-		result.append(
-			2*result[0]+point_b-2*point_a
-		)
-	
-	return result
+		var result: Array[Vector2] = [Vector2(point_a - Vector2((point_b.x-point_a.x) * abs(start_direction.x),
+			(point_b.y-point_a.y) * abs(start_direction.y))
+		)]
+		result.append(2*result[0]+point_b-2*point_a	)
+		return result
 
 
 func generate_building_outline() -> Array[Vector2]:
@@ -320,14 +395,14 @@ func generate_building_outline() -> Array[Vector2]:
 	var total_dist: float = 0
 	for i in range(1, vertices):
 		dists.append(dists[-1]+randf_r(randomness_slider))
-	print('-------------------------')
-	print('dists: ', dists)
+	# print('-------------------------')
+	# print('dists: ', dists)
 	total_dist = dists[-1]+randf_r(randomness_slider)
 	
 	for point in dists:
 		# Add points to the class variable
 		original_points.append((Vector2.from_angle(point/total_dist*2*PI) * radius).snapped(Vector2.ONE*grid_scale))
-	print('original_points: ', original_points)
+	# print('original_points: ', original_points)
 	# now connect the points in a sensible manner	
 	var result: Array[Vector2] = []
 	var incoming_dir: int = -1
@@ -413,9 +488,3 @@ func simplyfy_polygon(polygon: Array[Vector2]) -> Array[Vector2]:
 		point = next_point
 	
 	return simple_polygon
-
-
-### Internal building layout
-
-
-

@@ -3,8 +3,6 @@ class_name FloorPlanGrid
 
 ## Implements the room expansion algorithm for floor plan generation
 
-const FloorPlanCell = preload("res://scripts/floor_plan_cell.gd")
-
 var grid: Array[Array] = []
 var width: int = 0
 var height: int = 0
@@ -84,7 +82,7 @@ func get_cell(x: int, y: int) -> FloorPlanCell:
 
 
 ## Main algorithm: Room expansion
-func generate_floor_plan(room_list: Array[int], room_ratios: Dictionary) -> void:
+func generate_floor_plan(room_list: Array[int], room_ratios: Dictionary[int, float]) -> void:
 	# First pass: Rectangular growth
 	var rooms = _build_room_set(room_list)
 	
@@ -286,6 +284,16 @@ func _get_total_room_area() -> int:
 				area += 1
 	return area
 
+
+func get_rooms() -> Array[int]:
+	var rooms: Array[int] = []
+	for y in range(height):
+		for x in range(width):
+			var cell: FloorPlanCell = get_cell(x, y)
+			if not cell.is_empty() and not cell.is_outside() and cell.room_id not in rooms:
+				rooms.append(cell.room_id)
+	rooms.sort()
+	return rooms
 
 ## Debug: Print grid
 func print_grid() -> void:
