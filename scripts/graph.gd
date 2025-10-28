@@ -1,0 +1,99 @@
+extends RefCounted
+class_name Graph
+
+var _is_dirceted: bool = false
+var edges: Array[Edge] = []
+var nodes: Array[int] = []
+
+func _init(directed: bool = false) -> void:
+	_is_dirceted = directed
+
+# Convert the graph to its respective representaion in the DOT Language
+func to_dot(graph_name: String = "GodotGraph") -> String:
+	var dot = "graph " + graph_name + " {"
+	var edge_connector: String = " -- "
+	if _is_dirceted:
+		edge_connector = " -> "
+	
+	# Add all edges
+	for edge in edges:
+		dot += "\n    " + str(edge.start) + edge_connector + str(edge.end)
+		dot += " [weight=" + str(edge.weight) + "];"
+	# Add missing orphan nodes
+	for node in nodes:
+		if not edges.any(func(edge: Edge): return edge.start==node or edge.end==node):
+			dot += "\n    " + str(node) + ";"
+	
+	dot += "\n}"
+	return dot
+
+## Finds the minimum spaning tree (mst) for a given graph.
+## It uses [Prim's Algorithm](https://en.wikipedia.org/wiki/Prim%27s_algorithm)
+func get_mst() -> Graph:
+	assert(_is_dirceted == false, "can only generate an mst for an undirected graph")
+	var min_weight: Dictionary[int, float] = {}
+	#var min_edge: Array = [] # type should be a nulable int
+	var min_edge: Dictionary = {}
+	for node in nodes:
+		min_weight[node] = INF
+		# min_edge.append(null)
+	
+	var explored: Array[int] = []
+	var unexplored: Array[int] = nodes.duplicate()
+	
+	var start_node: int = unexplored[0]
+	min_weight[start_node] = 0
+	
+	while not unexplored.is_empty():
+		# Select vertex in unexplored with minimum cost
+		# sort with descending weight
+		unexplored.sort_custom(func(a, b): return min_weight[a] > min_weight[b])
+		var current_node: int = unexplored.pop_back()
+		explored.append(current_node)
+		
+		for edge in edges:
+			var neighbor: int
+			if edge.start == current_node:
+				neighbor = edge.end
+			elif _is_dirceted == false and edge.end == current_node:
+				neighbor = edge.start
+			else:
+				continue
+			
+			if unexplored.find(neighbor) >= 0 and min_weight[current_node]+edge.weight < min_weight[neighbor]:
+				min_weight[neighbor] = min_weight[current_node]+edge.weight
+				min_edge[neighbor] = edge
+	
+	var mst_edges: Array[Edge] = []
+	var mst_nodes: Array[int] = []
+	for node in nodes:
+		if min_edge.keys().find(node)>=0:
+			mst_nodes.append(node)
+			mst_edges.append(min_edge[node])
+	
+	var mst = Graph.new(_is_dirceted)
+	mst.edges = mst_edges
+	mst.nodes = mst_nodes
+	
+	return mst
+
+
+func _edges_to_nodes(edge_list: Array[Edge]) -> Array[int]:
+	var result: Array[int] = []
+	for edge in edge_list:
+		if not result.find(edge.start) >= 0:
+			result.append(edge.start)
+		if not result.find(edge.end) >= 0:
+			result.append(edge.end)
+	return result
+
+class Edge extends RefCounted:
+	var start: int ## Start node id
+	var end: int ## End node id
+	var weight: float = 1.0
+	
+	@warning_ignore("shadowed_variable")
+	func _init(start, end, weight) -> void:
+		self.start = start
+		self.end = end
+		self.weight = weight
