@@ -4,7 +4,7 @@ class_name FloorPlanGrid
 ## Implements the room expansion algorithm for floor plan generation
 
 # TODO: replace with custom data class maybe `FloorPlanCell.Grid`
-var grid: Array[Array] = [] # should be of type `Array[Array[FloorPlanCell]]`
+var grid: Array[Array] = [] ## should be of type `Array[Array[FloorPlanCell]]`
 var width: int = 0
 var height: int = 0
 var grid_resolution: int = 1
@@ -48,11 +48,10 @@ static func from_points(points: Array[Vector2], resolution: int = 1) -> FloorPla
 	var world_pos: Vector2
 	for y in range(grid_size.y):
 		for x in range(grid_size.x):
-			# TODO: propably most of this code is wron lol ._.
 			world_pos = origin + Vector2(x, y)/resolution
-			#var world_pos = Vector2(min_x + x * resolution, min_y + y * resolution)
-			print("is_outside(",x, ", ", y, ") -> ", _is_point_in_polygon(world_pos, points))
-			print("  world_pos: ", world_pos)
+			# TODO: propably most of this code is wrong lol ._.
+			# print("is_outside(",x, ", ", y, ") -> ", _is_point_in_polygon(world_pos, points))
+			# print("  world_pos: ", world_pos)
 			if not _is_point_in_polygon(world_pos, points):
 				floor_grid.get_cell(x,y).set_outside()
 	
@@ -78,7 +77,7 @@ func get_cell(x: int, y: int) -> FloorPlanCell:
 
 ## Check if a point is inside a polygon using ray casting algorithm
 static func _is_point_in_polygon(point: Vector2, polygon: Array[Vector2]) -> bool:
-	if polygon.size()>=2:
+	if polygon.size()<=2:
 		return false
 	
 	var inside = false
@@ -93,10 +92,10 @@ static func _is_point_in_polygon(point: Vector2, polygon: Array[Vector2]) -> boo
 	for next_point in polygon:
 		v1 = point-current_point
 		v2 = next_point-current_point
-		t1 = abs(v2.cross(v1))/v2.dot(v3)
+		t1 = v2.cross(v1)/v2.dot(v3)
 		if t1>0: # ray points in direction of line (segment)
 			t2 = v1.dot(v3)/v2.dot(v3)
-			if t2>0 and t2<1: # ray hits inbetween current_point and next_point (both exlusive)
+			if t2>=0 and t2<1: # ray hits inbetween current_point (inclusive) and next_point (exlusive)
 				inside = not inside
 		
 		current_point = next_point
