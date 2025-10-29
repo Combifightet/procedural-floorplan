@@ -25,7 +25,7 @@ var _seed: int = -1
 
 # values to snap all vectors to
 var _outline_grid_resolution: float = 1
-var _room_grid_resolution: float =  0.5 # maybe also try with 1
+var _room_grid_resolution: float =  2 # maybe also try with 1
 
 var _floorplan_grid: FloorPlanGrid
 
@@ -47,8 +47,8 @@ const _house_radius: Dictionary[HouseSize, float] = {
 
 func _init(grid_resolution:float = 1, grid_subdivisions: int = 2) -> void:
 	assert(grid_resolution>0, "grid resolution must be a positive value")
-	_outline_grid_resolution = 1/grid_resolution
-	_room_grid_resolution = grid_resolution/grid_subdivisions
+	_outline_grid_resolution = grid_resolution
+	_room_grid_resolution = grid_resolution*grid_subdivisions
 
 ## Returns a random floating point-value between `min_value` and `1.0` (inclusive) 
 static func randf_min(min_value: float) -> float:
@@ -175,18 +175,23 @@ func generate(size: HouseSize) -> void:
 
 ## Generates a new floor plan for a custom building.
 func generate_custom(initial_vertecies: int = 6, randomness: float = 0.6, radius: float = 6) -> void:
+	print("generating floorplan ...")
 	if _seed == -1:
 		randomize()
 	else:
 		seed(_seed)
 	
+	print("  generating outline ...")
 	building_outline = _generatebuilding_outline(
 		initial_vertecies,
 		randomness,
 		radius,
 	)
 	
+	print("  generating grid ...")
 	_floorplan_grid = FloorPlanGrid.from_points(building_outline)
+	print("    printing grid ...")
+	_floorplan_grid.print_grid()
 
 
 class RoomArea extends RefCounted:

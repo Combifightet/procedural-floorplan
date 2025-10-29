@@ -18,3 +18,9 @@ func _ready() -> void:
 	var mst_graph: Graph = graph.get_mst()
 	mst_graph._is_dirceted=true
 	print(mst_graph.to_dot("MstGraph"))
+	
+	print("")
+	
+	var floorplan_gen: FloorPlanGen = FloorPlanGen.new()
+	floorplan_gen.set_seed(1)
+	floorplan_gen.generate(FloorPlanGen.HouseSize.NORMAL)
