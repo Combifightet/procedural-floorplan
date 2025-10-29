@@ -12,6 +12,9 @@ func _ready() -> void:
 		Graph.Edge.new(3, 4, 3),
 	]
 	
-	print(graph.to_dot("BaseGraph"))
+	graph = Graph.get_connected(7, true, 1)
 	
-	print(graph.get_mst().to_dot("MstGraph"))
+	print(graph.to_dot("RandomGraph"))
+	var mst_graph: Graph = graph.get_mst()
+	mst_graph._is_dirceted=true
+	print(mst_graph.to_dot("MstGraph"))

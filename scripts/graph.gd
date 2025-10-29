@@ -10,7 +10,7 @@ func _init(directed: bool = false) -> void:
 
 # Convert the graph to its respective representaion in the DOT Language
 func to_dot(graph_name: String = "GodotGraph") -> String:
-	var dot = "graph " + graph_name + " {"
+	var dot = ("digraph " if _is_dirceted else "graph ") + graph_name + " {"
 	var edge_connector: String = " -- "
 	if _is_dirceted:
 		edge_connector = " -> "
@@ -77,6 +77,33 @@ func get_mst() -> Graph:
 	
 	return mst
 
+# Returns a fully connected (undirected) graph with random weights if needed
+static func get_connected(node_count: int, random_weights: bool = true, _seed:int = -1) -> Graph:
+	if _seed == -1:
+		randomize()
+	else:
+		seed(_seed)
+	
+	if node_count<=0:
+		return Graph.new()
+	
+	var weight: float = 1
+	
+	var result_nodes: Array[int] = []
+	var result_edges: Array[Edge] = []
+	for i in range(node_count):
+		result_nodes.append((i))
+		for j in range(i+1, node_count):
+			if random_weights:
+				weight = randf()
+			result_edges.append(Edge.new(i, j, weight))
+	
+	var result: Graph = Graph.new()
+	result.nodes = result_nodes
+	result.edges = result_edges
+	return result
+	
+	
 
 func _edges_to_nodes(edge_list: Array[Edge]) -> Array[int]:
 	var result: Array[int] = []
