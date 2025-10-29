@@ -21,8 +21,6 @@ func _ready() -> void:
 	
 	print("")
 	
-	var floorplan_gen: FloorPlanGen = FloorPlanGen.new()
-	floorplan_gen.set_seed(1)
-	floorplan_gen.generate(FloorPlanGen.HouseSize.NORMAL)
-	
-	
+	var floorplan_gen: FloorPlanGen = FloorPlanGen.new(1, 2)
+	floorplan_gen.set_seed(2508830588)
+	floorplan_gen.generate(FloorPlanGen.HouseSize.SMALL)

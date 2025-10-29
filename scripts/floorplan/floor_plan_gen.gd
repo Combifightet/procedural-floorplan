@@ -1,7 +1,6 @@
 extends RefCounted
 class_name FloorPlanGen
 
-enum HouseZone {PUBLIC, PRIVATE, HALLWAY}
 enum HouseSize {SMALL, NORMAL, LARGE}
 enum Direction {N=0, E=1, S=2, W=3}
 
@@ -22,12 +21,13 @@ var building_outline: Array[Vector2] = []
 
 
 var _seed: int = -1
+var _last_seed: int = -1
 
-# values to snap all vectors to
-var _outline_grid_resolution: float = 1
-var _room_grid_resolution: float =  2 # maybe also try with 1
+# subdivision count of "standard" unit grid
+var _outline_grid_resolution: int = 1
+var _room_grid_resolution: int =  2
 
-var _floorplan_grid: FloorPlanGrid
+var _floorplan_grid: FloorPlanGridAi
 
 const _initial_vertecies: Dictionary[HouseSize, int] = {
 	HouseSize.SMALL:  3,
@@ -45,7 +45,7 @@ const _house_radius: Dictionary[HouseSize, float] = {
 	HouseSize.LARGE:  9,
 }
 
-func _init(grid_resolution:float = 1, grid_subdivisions: int = 2) -> void:
+func _init(grid_resolution: int = 1, grid_subdivisions: int = 2) -> void:
 	assert(grid_resolution>0, "grid resolution must be a positive value")
 	_outline_grid_resolution = grid_resolution
 	_room_grid_resolution = grid_resolution*grid_subdivisions
@@ -165,6 +165,12 @@ func set_seed(base: int = -1) -> void:
 	_seed = base
 	seed(4)
 
+func get_seed() -> int:
+	return _seed
+
+func get_last_seed() -> int:
+	return _last_seed
+
 ## Generates a new floor plan for a predefined building size
 func generate(size: HouseSize) -> void:
 	generate_custom(
@@ -178,7 +184,10 @@ func generate_custom(initial_vertecies: int = 6, randomness: float = 0.6, radius
 	print("generating floorplan ...")
 	if _seed == -1:
 		randomize()
+		_last_seed = randi()
+		seed(_last_seed)
 	else:
+		_last_seed = _seed
 		seed(_seed)
 	
 	print("  generating outline ...")
@@ -189,51 +198,8 @@ func generate_custom(initial_vertecies: int = 6, randomness: float = 0.6, radius
 	)
 	
 	print("  generating grid ...")
-	_floorplan_grid = FloorPlanGrid.from_points(building_outline)
+	_floorplan_grid = FloorPlanGridAi.from_points(building_outline, _room_grid_resolution)
 	print("    printing grid ...")
 	_floorplan_grid.print_grid()
-
-
-class RoomArea extends RefCounted:
-	var id: int = 0
-	var zone: HouseZone = HouseZone.PUBLIC
-	var rel_size: float = 1 # size ratio
-	var connectivity: Array[int] = []
-	
-	@warning_ignore("shadowed_variable")
-	func _init(id: int, zone: HouseZone, rel_size: float, connectivity: Array[int]) -> void:
-		self.id = id
-		self.zone = zone
-		self.rel_size = rel_size
-		self.connectivity = connectivity
-	
-	static func from_graph(graph: Graph, randomness:float = 1, _seed:int = -1) -> Array[RoomArea]:
-		if _seed == -1:
-			randomize()
-		else:
-			seed(_seed)
-		
-		var sizes: Array[float] = [0]
-		for i in range(1, graph.nodes.size()):
-			sizes.append(sizes[-1]+FloorPlanGen.randf_min(randomness))
-		var total_size: float =  sizes[-1]+FloorPlanGen.randf_min(randomness)
-		
-		var result: Array[RoomArea] = []
-		var random_zone: HouseZone
-		var generated_hallway: bool = false # to ensure generation of maxiumum one hallway
-		for i in range(graph.nodes.size()):
-			if not generated_hallway:
-				random_zone = randi()%HouseZone.size() as HouseZone
-			else:
-				random_zone = randi()%(HouseZone.size()-1) as HouseZone
-				# this won't be needed, since `HALLWAY` is the last enum value
-				#if random_zone == HouseZone.HALLWAY:
-					#random_zone = random_zone+1 as HouseZone
-			result.append(RoomArea.new(
-				graph.nodes[i],
-				random_zone,
-				sizes[i]/total_size,
-				graph.get_connections_from(graph.nodes[i])
-			))
-		
-		return result
+	print("  generating intial room positions ...")
+	# _floorplan_grid.print_grid()

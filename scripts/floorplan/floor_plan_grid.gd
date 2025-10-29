@@ -31,6 +31,7 @@ func _initialize_grid() -> void:
 
 ## Create grid from a list of boundary points
 static func from_points(points: Array[Vector2], resolution: int = 1) -> FloorPlanGrid:
+	assert(resolution>=1, "resoltion must be a natual number (e.g >= 1)")
 	if points.is_empty():
 		return null
 	const padding: int = 1
@@ -38,6 +39,7 @@ static func from_points(points: Array[Vector2], resolution: int = 1) -> FloorPla
 	var bounds: Rect2 = _get_bounds(points)
 	assert(bounds.is_finite(), "bounding box can't be infinite")
 	var grid_size: Vector2 = snap2(bounds.end, 1.0/resolution)-snap2(bounds.position, 1.0/resolution) # get min grid dimension
+	grid_size *= resolution # scale with resolution
 	grid_size += Vector2.ONE*2*padding # add padding around the building grid
 
 	
@@ -49,9 +51,6 @@ static func from_points(points: Array[Vector2], resolution: int = 1) -> FloorPla
 	for y in range(grid_size.y):
 		for x in range(grid_size.x):
 			world_pos = origin + Vector2(x, y)/resolution
-			# TODO: propably most of this code is wrong lol ._.
-			# print("is_outside(",x, ", ", y, ") -> ", _is_point_in_polygon(world_pos, points))
-			# print("  world_pos: ", world_pos)
 			if not _is_point_in_polygon(world_pos, points):
 				floor_grid.get_cell(x,y).set_outside()
 	
@@ -122,6 +121,12 @@ static func _get_bounds(points: Array[Vector2]) -> Rect2:
 			max_bounds.y = point.y
 	
 	return Rect2(min_bounds, max_bounds-min_bounds)
+
+
+## generaterandom initial room placements
+func place_rooms(rooms: Array[RoomArea]):
+	# TODO: implement algorithm
+	pass
 
 
 ## Debug: Print grid
