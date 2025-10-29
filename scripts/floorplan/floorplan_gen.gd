@@ -51,7 +51,7 @@ func _init(grid_resolution:float = 1, grid_subdivisions: int = 2) -> void:
 	_room_grid_resolution = grid_resolution/grid_subdivisions
 
 ## Returns a random floating point-value between `min_value` and `1.0` (inclusive) 
-func _randf_min(min_value: float) -> float:
+static func randf_min(min_value: float) -> float:
 	min_value = clamp(min_value, 0, 1)
 	return randf()*min_value+(1-min_value)
 
@@ -123,8 +123,8 @@ func _generatebuilding_outline(vertices: int = 7, randomness: float = 0.8, radiu
 	var dists: Array[float] = [0]
 	var total_dist: float = 0
 	for i in range(1, vertices):
-		dists.append(dists[-1]+_randf_min(randomness))
-	total_dist = dists[-1]+_randf_min(randomness)
+		dists.append(dists[-1]+randf_min(randomness))
+	total_dist = dists[-1]+randf_min(randomness)
 	
 	var points: Array[Vector2] = []
 	for point in dists:
@@ -175,7 +175,6 @@ func generate(size: HouseSize) -> void:
 
 ## Generates a new floor plan for a custom building.
 func generate_custom(initial_vertecies: int = 6, randomness: float = 0.6, radius: float = 6) -> void:
-	# TODO: reset seed or set custom seed
 	if _seed == -1:
 		randomize()
 	else:
@@ -188,3 +187,48 @@ func generate_custom(initial_vertecies: int = 6, randomness: float = 0.6, radius
 	)
 	
 	_floorplan_grid = FloorPlanGrid.from_points(building_outline)
+
+
+class RoomArea extends RefCounted:
+	var id: int = 0
+	var zone: HouseZone = HouseZone.PUBLIC
+	var rel_size: float = 1 # size ratio
+	var connectivity: Array[int] = []
+	
+	@warning_ignore("shadowed_variable")
+	func _init(id: int, zone: HouseZone, rel_size: float, connectivity: Array[int]) -> void:
+		self.id = id
+		self.zone = zone
+		self.rel_size = rel_size
+		self.connectivity = connectivity
+	
+	static func from_graph(graph: Graph, randomness:float = 1, _seed:int = -1) -> Array[RoomArea]:
+		if _seed == -1:
+			randomize()
+		else:
+			seed(_seed)
+		
+		var sizes: Array[float] = [0]
+		for i in range(1, graph.nodes.size()):
+			sizes.append(sizes[-1]+FloorPlanGen.randf_min(randomness))
+		var total_size: float =  sizes[-1]+FloorPlanGen.randf_min(randomness)
+		
+		var result: Array[RoomArea] = []
+		var random_zone: HouseZone
+		var generated_hallway: bool = false # to ensure generation of maxiumum one hallway
+		for i in range(graph.nodes.size()):
+			if not generated_hallway:
+				random_zone = randi()%HouseZone.size() as HouseZone
+			else:
+				random_zone = randi()%(HouseZone.size()-1) as HouseZone
+				# this won't be needed, since `HALLWAY` is the last enum value
+				#if random_zone == HouseZone.HALLWAY:
+					#random_zone = random_zone+1 as HouseZone
+			result.append(RoomArea.new(
+				graph.nodes[i],
+				random_zone,
+				sizes[i]/total_size,
+				graph.get_connections_from(graph.nodes[i])
+			))
+		
+		return result

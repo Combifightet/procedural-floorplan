@@ -102,8 +102,26 @@ static func get_connected(node_count: int, random_weights: bool = true, _seed:in
 	result.nodes = result_nodes
 	result.edges = result_edges
 	return result
-	
-	
+
+## returns a list of all nodes connected to this node via outgoing edges
+func get_connections_from(node: int) -> Array[int]:
+	var result: Array[int] = []
+	for edge in edges:
+		if edge.start==node and result.find(edge.end)<0:
+			result.append(edge.end)
+		if _is_dirceted==false and edge.end==node and result.find(edge.start)<0:
+			result.append(edge.start)
+	return result
+
+## returns a list of all nodes connected to this node via incoming edges
+func get_connections_to(node: int) -> Array[int]:
+	var result: Array[int] = []
+	for edge in edges:
+		if edge.end==node and result.find(edge.start)<0:
+			result.append(edge.start)
+		if _is_dirceted==false and edge.start==node and result.find(edge.end)<0:
+			result.append(edge.end)
+	return result
 
 func _edges_to_nodes(edge_list: Array[Edge]) -> Array[int]:
 	var result: Array[int] = []
