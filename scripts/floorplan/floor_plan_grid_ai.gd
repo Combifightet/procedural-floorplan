@@ -1,5 +1,5 @@
 extends RefCounted
-class_name FloorPlanGridAi
+class_name FloorPlanGridAI
 
 ## Implements the room expansion algorithm for floor plan generation
 
@@ -31,7 +31,7 @@ func _initialize_grid() -> void:
 
 ## Create grid from a list of boundary points
 static func from_points(points: 
-Array[Vector2], resolution: int = 1) -> FloorPlanGridAi:
+Array[Vector2], resolution: int = 1) -> FloorPlanGridAI:
 	assert(resolution>=1, "resoltion must be a natual number (e.g >= 1)")
 	if points.is_empty():
 		return null
@@ -44,7 +44,7 @@ Array[Vector2], resolution: int = 1) -> FloorPlanGridAi:
 	grid_size += Vector2.ONE*2*padding # add padding around the building grid
 
 	
-	var floor_grid: FloorPlanGridAi = FloorPlanGridAi.new(floor(grid_size).x, floor(grid_size).y, resolution)
+	var floor_grid: FloorPlanGridAI = FloorPlanGridAI.new(floor(grid_size).x, floor(grid_size).y, resolution)
 	
 	# Mark cells inside the polygon as empty, outside as OUTSIDE
 	var origin: Vector2 = snap2(bounds.position, 1.0/resolution) - Vector2.ONE*padding/resolution
@@ -128,7 +128,8 @@ static func _get_bounds(points: Array[Vector2]) -> Rect2:
 
 
 ## Places initial room seeds based on weights
-func place_rooms(rooms: Array[RoomArea]):
+func place_rooms(rooms: Array[RoomArea]) -> void:
+	print("rooms: ", rooms)
 	if rooms.is_empty():
 		return
 	
@@ -166,6 +167,19 @@ func place_rooms(rooms: Array[RoomArea]):
 			room_start_positions[room.id] = chosen_pos
 		else:
 			push_error("Chosen position %s for room %d is invalid." % [chosen_pos, room.id])
+		
+		print("--------------- room: ", room.id, " ---------------")
+		for y: int in range(height):
+			var row_str: String = "  "
+			for x: int in range(width):
+				var cell2: FloorPlanCell = get_cell(x,y)
+				if cell2.is_outside():
+					row_str += " ▪ "
+				elif cell2.is_empty():
+					row_str += " � "
+				else:
+					row_str += "%2d " % cell.room_id
+			print(row_str)
 
 
 ## --- Helper Functions for Room Placement ---
@@ -323,6 +337,33 @@ func _find_any_empty_cell() -> Vector2i:
 			if get_cell(x, y).is_empty():
 				return Vector2i(x, y)
 	return Vector2i(-1, -1) # No empty cells left
+
+
+func get_rooms() -> Array[int]:
+	var rooms: Array[int] = []
+	for y in range(height):
+		for x in range(width):
+			var cell: FloorPlanCell = get_cell(x, y)
+			if not cell.is_empty() and not cell.is_outside() and cell.room_id not in rooms:
+				rooms.append(cell.room_id)
+	rooms.sort()
+	return rooms
+
+
+func to_texture() -> Image:
+	var rooms: Array[int] = get_rooms()
+	var image: Image = Image.create(width, height, false, Image.FORMAT_RGB8)
+	for y in range(height):
+		for x in range(width):
+			var cell: FloorPlanCell = get_cell(x, y)
+			if cell.is_outside():
+				image.set_pixel(x, y, Color.from_rgba8(35, 39, 46))
+			elif cell.is_empty():
+				image.set_pixel(x, y, Color.from_rgba8(255, 0, 255))
+			else:
+				var hue: float = rooms.find(cell.room_id)/float(rooms.size())
+				image.set_pixel(x, y, Color.from_ok_hsl(hue, 66/100.0, 55/100.0))
+	return image
 
 
 ## Debug: Print grid

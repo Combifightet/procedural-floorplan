@@ -27,7 +27,7 @@ var _last_seed: int = -1
 var _outline_grid_resolution: int = 1
 var _room_grid_resolution: int =  2
 
-var _floorplan_grid: FloorPlanGridAi
+var _floorplan_grid: FloorPlanGrid
 
 const _initial_vertecies: Dictionary[HouseSize, int] = {
 	HouseSize.SMALL:  3,
@@ -43,6 +43,16 @@ const _house_radius: Dictionary[HouseSize, float] = {
 	HouseSize.SMALL:  4,
 	HouseSize.NORMAL: 6,
 	HouseSize.LARGE:  9,
+}
+const _min_rooms: Dictionary[HouseSize, int] = {
+	HouseSize.SMALL:  3,
+	HouseSize.NORMAL: 5,
+	HouseSize.LARGE:  8,
+}
+const _max_rooms: Dictionary[HouseSize, int] = {
+	HouseSize.SMALL:  5,
+	HouseSize.NORMAL: 8,
+	HouseSize.LARGE:  14,
 }
 
 func _init(grid_resolution: int = 1, grid_subdivisions: int = 2) -> void:
@@ -119,7 +129,7 @@ func _get_connection_points(point_a: Vector2, point_b: Vector2, start_direction:
 		result.append(2*result[0]+point_b-2*point_a	)
 		return result
 
-func _generatebuilding_outline(vertices: int = 7, randomness: float = 0.8, radius: float = 5) -> Array[Vector2]:
+func _generate_building_outline(vertices: int = 7, randomness: float = 0.8, radius: float = 5) -> Array[Vector2]:
 	var dists: Array[float] = [0]
 	var total_dist: float = 0
 	for i in range(1, vertices):
@@ -159,6 +169,15 @@ func _generatebuilding_outline(vertices: int = 7, randomness: float = 0.8, radiu
 	return result
 
 
+func _generate_room_areas(room_count: int = 5, randomness: float = 1) -> Array[RoomArea]:
+	var graph: Graph = Graph.get_connected(room_count, true, 1)
+	var mst_graph: Graph = graph.get_mst()
+	print(mst_graph.to_dot("MstGraph"))
+	print(mst_graph.nodes)
+	return RoomArea.from_graph(mst_graph, randomness, _seed)
+
+
+
 ## Sets the seed for the random number generator to `base`.
 ## A value of `-1` means no seed
 func set_seed(base: int = -1) -> void:
@@ -171,16 +190,20 @@ func get_seed() -> int:
 func get_last_seed() -> int:
 	return _last_seed
 
+func get_grid() -> FloorPlanGrid:
+	return _floorplan_grid
+
 ## Generates a new floor plan for a predefined building size
 func generate(size: HouseSize) -> void:
 	generate_custom(
 		_initial_vertecies[size],
 		_randomness[size],
 		_house_radius[size],
+		randi_range(_min_rooms[size], _max_rooms[size])
 	)
 
 ## Generates a new floor plan for a custom building.
-func generate_custom(initial_vertecies: int = 6, randomness: float = 0.6, radius: float = 6) -> void:
+func generate_custom(initial_vertecies: int = 6, randomness: float = 0.6, radius: float = 6, room_count: int = 6) -> void:
 	print("generating floorplan ...")
 	if _seed == -1:
 		randomize()
@@ -191,15 +214,20 @@ func generate_custom(initial_vertecies: int = 6, randomness: float = 0.6, radius
 		seed(_seed)
 	
 	print("  generating outline ...")
-	building_outline = _generatebuilding_outline(
+	building_outline = _generate_building_outline(
 		initial_vertecies,
 		randomness,
 		radius,
 	)
 	
 	print("  generating grid ...")
-	_floorplan_grid = FloorPlanGridAi.from_points(building_outline, _room_grid_resolution)
+	_floorplan_grid = FloorPlanGrid.from_points(building_outline, _room_grid_resolution)
 	print("    printing grid ...")
 	_floorplan_grid.print_grid()
+	
+	print("  generating room set (", room_count, ") ...")
+	var rooms: Array[RoomArea] = _generate_room_areas(room_count, randomness)
+	print("    rooms: ", rooms)
 	print("  generating intial room positions ...")
+	_floorplan_grid.place_rooms(rooms)
 	# _floorplan_grid.print_grid()

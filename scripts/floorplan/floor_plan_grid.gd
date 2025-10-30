@@ -28,6 +28,15 @@ func _initialize_grid() -> void:
 			row.append(FloorPlanCell.new())
 		grid.append(row)
 
+func _create_int_grid(initial_value:int = 0) -> Array[Array]:
+	var int_grid: Array[Array] = [] ## should be of type `Array[Array[int]]`
+	for y in range(height):
+		var row: Array[int] = []
+		for x in range(width):
+			row.append(initial_value)
+		int_grid.append(row)
+	return int_grid
+
 
 ## Create grid from a list of boundary points
 static func from_points(points: Array[Vector2], resolution: int = 1) -> FloorPlanGrid:
@@ -124,9 +133,84 @@ static func _get_bounds(points: Array[Vector2]) -> Rect2:
 
 
 ## generaterandom initial room placements
-func place_rooms(rooms: Array[RoomArea]):
+func place_rooms(rooms: Array[RoomArea]) -> void:
 	# TODO: implement algorithm
-	pass
+	print("rooms: ", rooms)
+
+	var dist_grid: Array[Array] = _get_outside_dists() # should be Array[Array[int]]
+
+	print("  dist_grid:")
+	debug_print_mat2(dist_grid)
+
+	for room in rooms:
+		
+		pass
+
+func _get_outside_dists() -> Array[Array]:
+	var dist_grid: Array[Array] = _create_int_grid(-1)  # -1 means unvisited
+	var queue: Array[Vector2i] = []
+	
+	# Initialize: add all outside cells to queue with distance 0
+	for y in range(height):
+		for x in range(width):
+			if get_cell(x, y).is_outside():
+				dist_grid[y][x] = 0
+				queue.append(Vector2i(x, y))
+	
+	var directions: Array[Vector2i] = [
+		Vector2i(1, 0),   # right
+		Vector2i(-1, 0),  # left
+		Vector2i(0, 1),   # down
+		Vector2i(0, -1)   # up
+	]
+	# BFS to calculate distances
+	while not queue.is_empty():
+		var pos: Vector2i = queue.pop_front()
+		var current_dist: int = dist_grid[pos.y][pos.x]
+		
+		# Check all neighbors
+		for dir in directions:
+			var nx: int = pos.x + dir.x
+			var ny: int = pos.y + dir.y
+			
+			# Skip if out of bounds or already visited
+			if nx < 0 or nx >= width or ny < 0 or ny >= height:
+				continue
+			if dist_grid[ny][nx] != -1:
+				continue
+			
+			# Set distance and add to queue
+			dist_grid[ny][nx] = current_dist + 1
+			queue.append(Vector2i(nx, ny))
+	
+	return dist_grid
+
+
+func get_rooms() -> Array[int]:
+	var rooms: Array[int] = []
+	for y in range(height):
+		for x in range(width):
+			var cell: FloorPlanCell = get_cell(x, y)
+			if not cell.is_empty() and not cell.is_outside() and cell.room_id not in rooms:
+				rooms.append(cell.room_id)
+	rooms.sort()
+	return rooms
+
+
+func to_texture() -> Image:
+	var rooms: Array[int] = get_rooms()
+	var image: Image = Image.create(width, height, false, Image.FORMAT_RGB8)
+	for y in range(height):
+		for x in range(width):
+			var cell: FloorPlanCell = get_cell(x, y)
+			if cell.is_outside():
+				image.set_pixel(x, y, Color.from_rgba8(35, 39, 46))
+			elif cell.is_empty():
+				image.set_pixel(x, y, Color.from_rgba8(255, 0, 255))
+			else:
+				var hue: float = rooms.find(cell.room_id)/float(rooms.size())
+				image.set_pixel(x, y, Color.from_ok_hsl(hue, 66/100.0, 55/100.0))
+	return image
 
 
 ## Debug: Print grid
@@ -141,4 +225,12 @@ func print_grid() -> void:
 				row_str += " . "
 			else:
 				row_str += "%2d " % cell.room_id
+		print(row_str)
+
+## Debug: Print grid
+func debug_print_mat2(mat2: Array[Array]) -> void:
+	for y: int in range(mat2.size()):
+		var row_str: String = ""
+		for x: int in range(mat2[y].size()):
+			row_str += str(mat2[y][x]) + " "
 		print(row_str)

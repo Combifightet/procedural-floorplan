@@ -68,8 +68,12 @@ func get_mst() -> Graph:
 	var mst_nodes: Array[int] = []
 	for node in nodes:
 		if min_edge.keys().find(node)>=0:
-			mst_nodes.append(node)
 			mst_edges.append(min_edge[node])
+	for edge in mst_edges:
+		if mst_nodes.find(edge.start) < 0:
+			mst_nodes.append(edge.start)
+		if mst_nodes.find(edge.end) < 0:
+			mst_nodes.append(edge.end)
 	
 	var mst = Graph.new(_is_dirceted)
 	mst.edges = mst_edges

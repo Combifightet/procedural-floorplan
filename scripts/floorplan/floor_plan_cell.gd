@@ -3,8 +3,8 @@ class_name FloorPlanCell
 
 ## Represents a single cell in a floor plan grid
 
-const OUTSIDE: int = 0
-const NO_ROOM: int = -1
+const OUTSIDE: int = -1
+const NO_ROOM: int = -9223372036854775808 # min signed 64-bit integer (2^63 - 1)
 
 var room_id: int = -1
 

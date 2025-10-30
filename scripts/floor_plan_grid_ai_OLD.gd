@@ -1,5 +1,5 @@
 extends RefCounted
-class_name FloorPlanGridAI
+
 
 ## Implements the room expansion algorithm for floor plan generation
 
