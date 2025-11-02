@@ -9,7 +9,8 @@ var width: int = 0
 var height: int = 0
 var grid_resolution: int = 1
 
-var _room_dict: Dictionary[Vector2i, RoomArea] = {}
+var _room_dict: Dictionary[Vector2i, RoomArea] = {} ## Stores the initial room position
+var _room_bounds: Dictionary[int, Rect2i] = {} ## Stores the current rectangular bounds of each room
 
 
 func _init(w: int, h: int, resolution: int = 1) -> void:
@@ -144,11 +145,8 @@ func place_rooms(rooms: Array[RoomArea]) -> void:
 	print("  dist_grid:")
 	debug_print_mat2(dist_grid)
 	
-	var free_cells: int = 0
-	for y in range(grid.size()):
-		for x in range(grid[y].size()):
-			if get_cell(x,y).is_empty():
-				free_cells += 1
+	var free_cells: int = _get_empty_cells()
+	
 	print("free_cells: ", free_cells)
 
 	for room in rooms:
@@ -193,12 +191,145 @@ func place_rooms(rooms: Array[RoomArea]) -> void:
 		var initial_room_cell: FloorPlanCell = get_cell(random_cell.x, random_cell.y)
 		assert(initial_room_cell.is_empty(), "selected cell should be empty")
 		initial_room_cell.grow(room.id)
+		
 		_room_dict[random_cell] = room
+		_room_bounds[room.id] = Rect2i(random_cell, Vector2i.ONE)
 
 
 func grow_rooms() -> void:
-	# TODO: implement Room expansion algorithm
-	pass
+	var room_areas: Array[RoomArea] = _room_dict.values()
+	var free_cells: int = _get_inside_cells()
+	var goal_size: Dictionary[int, int] = {} # Dictionary[room_id, target_cell_count]
+	var growable_rooms: Array[RoomArea]
+	
+	# Pre-calculate target size in cells for each room
+	for room in room_areas:
+		goal_size[room.id] = int(floor(room.rel_size * free_cells))
+		
+	# ---- Rectangular Growth ----
+	growable_rooms = room_areas.duplicate()
+	
+	while not growable_rooms.is_empty():
+		var room_to_grow: RoomArea = _get_most_deviant_room(growable_rooms)
+
+		# Ensure the room has bounds (it should have been set in place_rooms)
+		if not _room_bounds.has(room_to_grow.id):
+			printerr("Room %d has no bounds! Skipping." % room_to_grow.id)
+			growable_rooms.erase(room_to_grow)
+			continue
+			
+		var current_bounds: Rect2i = _room_bounds[room_to_grow.id]	
+		var did_grow: bool = false
+		
+		# Start from a random direction to avoid directional bias
+		var start_direction: int = randi() % 4 
+		
+		for i in range(4):
+			var direction: int = (start_direction + i) % 4
+			var rect_to_check: Rect2i
+			
+			match direction:
+				0:  # left
+					rect_to_check = Rect2i(current_bounds.position.x - 1, current_bounds.position.y, 1, current_bounds.size.y)
+					if _can_grow_rect(rect_to_check):
+						_fill_rect(room_to_grow.id, rect_to_check)
+						_room_bounds[room_to_grow.id] = current_bounds.grow_individual(1, 0, 0, 0)
+						did_grow = true
+						break
+				1:  # top
+					rect_to_check = Rect2i(current_bounds.position.x, current_bounds.position.y - 1, current_bounds.size.x, 1)
+					if _can_grow_rect(rect_to_check):
+						_fill_rect(room_to_grow.id, rect_to_check)
+						_room_bounds[room_to_grow.id] = current_bounds.grow_individual(0, 1, 0, 0)
+						did_grow = true
+						break
+				2:  # right
+					rect_to_check = Rect2i(current_bounds.end.x, current_bounds.position.y, 1, current_bounds.size.y)
+					if _can_grow_rect(rect_to_check):
+						_fill_rect(room_to_grow.id, rect_to_check)
+						_room_bounds[room_to_grow.id] = current_bounds.grow_individual(0, 0, 1, 0)
+						did_grow = true
+						break
+				3:  # bottom
+					rect_to_check = Rect2i(current_bounds.position.x, current_bounds.end.y, current_bounds.size.x, 1)
+					if _can_grow_rect(rect_to_check):
+						_fill_rect(room_to_grow.id, rect_to_check)
+						_room_bounds[room_to_grow.id] = current_bounds.grow_individual(0, 0, 0, 1)
+						did_grow = true
+						break
+		
+		if not did_grow:
+			growable_rooms.erase(room_to_grow)
+			
+	
+	# ----- L Shaped Growth ------
+	# TODO: Implement L-shaped growth for rooms that are stuck
+	
+	
+	# ----- Fill Empty Space -----
+	# TODO: Implement a fill algorithm (like BFS) to assign remaining
+	# empty cells to the nearest neighboring room
+	
+
+
+## Checks if all cells within a given rectangle are empty and growable
+func _can_grow_rect(rect_to_check: Rect2i) -> bool:
+	for y in range(rect_to_check.position.y, rect_to_check.end.y):
+		for x in range(rect_to_check.position.x, rect_to_check.end.x):
+			var cell: FloorPlanCell = get_cell(x, y)
+			if cell == null or not cell.is_empty():
+				return false
+	return true
+
+
+## Sets all cells within a given rectangle to a specific room ID
+func _fill_rect(room_id: int, rect_to_fill: Rect2i) -> void:
+	for y in range(rect_to_fill.position.y, rect_to_fill.end.y):
+		for x in range(rect_to_fill.position.x, rect_to_fill.end.x):
+			var cell: FloorPlanCell = get_cell(x, y)
+			if cell != null:
+				cell.grow(room_id)
+
+
+## returns cell count of this `RoomArea`
+func _get_room_cells(room: RoomArea) -> int:
+	var area: int = 0
+	for y in range(grid.size()):
+		for x in range(grid[y].size()):
+			if get_cell(x,y).room_id == room.id:
+				area += 1
+	return area
+
+## positive deviation means room is to small, and negative deviation means the opposite
+func _compare_deviation(a: RoomArea, b: RoomArea, ) -> bool:
+	var inside_cells: int = _get_inside_cells()
+	var deviataion_a: float = a.rel_size - _get_room_cells(a)/float(inside_cells)
+	var deviataion_b: float = b.rel_size - _get_room_cells(b)/float(inside_cells)
+	return deviataion_a > deviataion_b
+	
+
+
+func _get_most_deviant_room(rooms: Array[RoomArea])-> RoomArea:
+	rooms.sort_custom(_compare_deviation)
+	return rooms[0]
+
+
+func _get_inside_cells() -> int:
+	var free_cells: int = 0
+	for y in range(grid.size()):
+		for x in range(grid[y].size()):
+			if not get_cell(x,y).is_outside():
+				free_cells += 1
+	return free_cells
+
+
+func _get_empty_cells() -> int:
+	var free_cells: int = 0
+	for y in range(grid.size()):
+		for x in range(grid[y].size()):
+			if get_cell(x,y).is_empty():
+				free_cells += 1
+	return free_cells
 
 
 func _get_outside_dists() -> Array[Array]:
