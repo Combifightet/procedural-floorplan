@@ -21,10 +21,11 @@ static func from_graph(graph: Graph, randomness:float = 1, _seed:int = -1) -> Ar
 	else:
 		seed(_seed)
 	
-	var sizes: Array[float] = [0]
-	for i in range(1, graph.nodes.size()):
-		sizes.append(sizes[-1]+FloorPlanGen.randf_min(randomness))
-	var total_size: float =  sizes[-1]+FloorPlanGen.randf_min(randomness)
+	var sizes: Array[float] = []
+	var total_size: float = 0
+	for i in range(graph.nodes.size()):
+		sizes.append(FloorPlanGen.randf_min(randomness))
+		total_size += sizes[-1]
 	
 	var result: Array[RoomArea] = []
 	var random_zone: HouseZone

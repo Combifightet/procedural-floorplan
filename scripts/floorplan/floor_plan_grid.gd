@@ -9,6 +9,8 @@ var width: int = 0
 var height: int = 0
 var grid_resolution: int = 1
 
+var _room_dict: Dictionary[Vector2i, RoomArea] = {}
+
 
 func _init(w: int, h: int, resolution: int = 1) -> void:
 	print("    width:  ", w)
@@ -134,17 +136,70 @@ static func _get_bounds(points: Array[Vector2]) -> Rect2:
 
 ## generaterandom initial room placements
 func place_rooms(rooms: Array[RoomArea]) -> void:
-	# TODO: implement algorithm
+	_room_dict = {}
 	print("rooms: ", rooms)
 
 	var dist_grid: Array[Array] = _get_outside_dists() # should be Array[Array[int]]
 
 	print("  dist_grid:")
 	debug_print_mat2(dist_grid)
+	
+	var free_cells: int = 0
+	for y in range(grid.size()):
+		for x in range(grid[y].size()):
+			if get_cell(x,y).is_empty():
+				free_cells += 1
+	print("free_cells: ", free_cells)
 
 	for room in rooms:
+		print("------------------- room: ", rooms.find(room), " -------------------")
+		var room_radius: int = floor(sqrt(room.rel_size*free_cells)/2)
+		print("  room.rel_size: ", room.rel_size)
+		print("  room_radius: ", room_radius)
+		var entropy: Array[Array] = []
 		
-		pass
+		# optimal wall distance
+		for y in range(dist_grid.size()):
+			var row: Array[int] = []
+			for x in range(dist_grid[y].size()):
+				if dist_grid[y][x]<=0:
+					row.append(-1)
+				else:
+					row.append(abs(room_radius-dist_grid[y][x]))
+			entropy.append(row)
+		
+		print("  entropy_grid:")
+		debug_print_mat2(entropy)
+		
+		# TODO: do other calculations
+		#   - distance from other rooms
+		#   - neighbor constraints
+		
+		# select random from minimum
+		var entropy_flattend: Array[int] = []
+		for row in entropy:
+			entropy_flattend.append_array(row)
+		entropy_flattend.sort()
+		var min_entropy = entropy_flattend[entropy_flattend.find_custom(func (x): return x>=0)]
+		print("  min_entropy: ", min_entropy)
+		
+		var valid_cells: Array[Vector2i] = []
+		for y in range(len(entropy)):
+			for x in range(len(entropy[y])):
+				if entropy[y][x] == min_entropy:
+					valid_cells.append(Vector2i(x, y))
+		assert(not valid_cells.is_empty(), "valid_cells shouldn't be empty")
+		var random_cell: Vector2i = valid_cells[randi()%valid_cells.size()]
+		var initial_room_cell: FloorPlanCell = get_cell(random_cell.x, random_cell.y)
+		assert(initial_room_cell.is_empty(), "selected cell should be empty")
+		initial_room_cell.grow(room.id)
+		_room_dict[random_cell] = room
+
+
+func grow_rooms() -> void:
+	# TODO: implement Room expansion algorithm
+	pass
+
 
 func _get_outside_dists() -> Array[Array]:
 	var dist_grid: Array[Array] = _create_int_grid(-1)  # -1 means unvisited
@@ -232,5 +287,8 @@ func debug_print_mat2(mat2: Array[Array]) -> void:
 	for y: int in range(mat2.size()):
 		var row_str: String = ""
 		for x: int in range(mat2[y].size()):
-			row_str += str(mat2[y][x]) + " "
+			if mat2[y][x] == -1:
+				row_str += "- "
+			else:
+				row_str += str(mat2[y][x]) + " "
 		print(row_str)

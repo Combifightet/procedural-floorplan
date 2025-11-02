@@ -230,4 +230,9 @@ func generate_custom(initial_vertecies: int = 6, randomness: float = 0.6, radius
 	print("    rooms: ", rooms)
 	print("  generating intial room positions ...")
 	_floorplan_grid.place_rooms(rooms)
+	print("  growing rooms ...")
+	_floorplan_grid.grow_rooms()
+	# print("  placing inner doors ...")
+	# print("  placing windows") # optional
+	# print("  placing entrance door")
 	# _floorplan_grid.print_grid()
