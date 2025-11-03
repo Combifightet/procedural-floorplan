@@ -147,6 +147,8 @@ func place_rooms(rooms: Array[RoomArea]) -> void:
 	var free_cells: int = _get_empty_cells()
 	
 	print("free_cells: ", free_cells)
+	
+	var room_dist_entropy: Array[Array] = _create_int_grid(0)
 
 	for room in rooms:
 		print("------------------- room: ", rooms.find(room), " -------------------")
@@ -165,12 +167,13 @@ func place_rooms(rooms: Array[RoomArea]) -> void:
 					row.append(abs(room_radius-dist_grid[y][x]))
 			entropy.append(row)
 		
-		print("  entropy_grid:")
-		#debug_print_mat2(entropy)
+		# make rooms not be too close together
+		entropy = _combine_entropy(entropy, room_dist_entropy)
+		
 		
 		# TODO: do other calculations
-		#   - distance from other rooms
 		#   - neighbor constraints
+		
 		
 		# select random from minimum
 		var entropy_flattend: Array[int] = []
@@ -178,7 +181,6 @@ func place_rooms(rooms: Array[RoomArea]) -> void:
 			entropy_flattend.append_array(row)
 		entropy_flattend.sort()
 		var min_entropy = entropy_flattend[entropy_flattend.find_custom(func (x): return x>=0)]
-		print("  min_entropy: ", min_entropy)
 		
 		var valid_cells: Array[Vector2i] = []
 		for y in range(len(entropy)):
@@ -193,7 +195,48 @@ func place_rooms(rooms: Array[RoomArea]) -> void:
 		
 		_room_dict[random_cell] = room
 		_room_bounds[room.id] = Rect2i(random_cell, Vector2i.ONE)
+		
+		# Update room dist_grid
+		var queue: Array[Vector2i] = [random_cell]
+		room_dist_entropy[random_cell.y][random_cell.x] = room_radius*2
+		
+		const directions: Array[Vector2i] = [
+			Vector2i.RIGHT,   # right
+			Vector2i.LEFT,  # left
+			Vector2i.DOWN,   # down
+			Vector2i.UP   # up
+		]
+		# BFS to calculate distances
+		while not queue.is_empty():
+			var pos: Vector2i = queue.pop_front()
+			var current_entropy: int = room_dist_entropy[pos.y][pos.x]
+			
+			# Check all neighbors
+			if current_entropy>0:
+				for dir in directions:
+					var nx: int = pos.x + dir.x
+					var ny: int = pos.y + dir.y
+					
+					if nx < 0 or nx >= width or ny < 0 or ny >= height:
+						continue # out of bounds
+					if room_dist_entropy[ny][nx] >= current_entropy or room_dist_entropy[ny][nx]==-1:
+						continue # already has a closer room
+					
+					# Set distance and add to queue
+					room_dist_entropy[ny][nx] = current_entropy - 1
+					queue.append(Vector2i(nx, ny))
+					
+		room_dist_entropy[random_cell.y][random_cell.x] = -1
 
+
+func _combine_entropy(e1: Array[Array], e2: Array[Array]) -> Array[Array]:
+	var result: Array[Array] = []
+	for y in range(e1.size()):
+		var row: Array[int] = []
+		for x in range(e1[y].size()):
+			row.append(-1 if e1[y][x]<0 or e2[y][x]<0 else e1[y][x]+e2[y][x])
+		result.append(row)
+	return result
 
 func grow_rooms() -> void:
 	var room_areas: Array[RoomArea] = _room_dict.values()
