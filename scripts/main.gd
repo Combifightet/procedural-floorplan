@@ -18,9 +18,11 @@ func _ready() -> void:
 	print("")
 	
 	floorplan_gen = FloorPlanGen.new(1, 2) # Assign to class variable
-	#floorplan_gen.set_seed(296433852)
-	floorplan_gen.set_seed(541793906)
-	floorplan_gen.generate(FloorPlanGen.HouseSize.SMALL)
+	# without a seed it's not repeatable
+	floorplan_gen.set_seed(7)
+	#randomize()
+	#floorplan_gen.set_seed(randi())
+	floorplan_gen.generate(FloorPlanGen.HouseSize.NORMAL)
 	print("last_seed: ", floorplan_gen.get_last_seed())
 
 	print("displaying grid ...")

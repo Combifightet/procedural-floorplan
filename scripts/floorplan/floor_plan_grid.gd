@@ -3,7 +3,6 @@ class_name FloorPlanGrid
 
 ## Implements the room expansion algorithm for floor plan generation
 
-# TODO: replace with custom data class maybe `FloorPlanCell.Grid`
 var grid: Array[Array] = [] ## should be of type `Array[Array[FloorPlanCell]]`
 var width: int = 0
 var height: int = 0
@@ -292,9 +291,7 @@ func grow_rooms() -> void:
 		var grow_room: RoomArea
 		var grow_start_pos: Vector2i
 		var grow_direction: Vector2i
-		print("#########################################")
 		for room in growable_rooms:
-			print("----------------- room_", room.id, " -----------------")
 			if not _room_bounds.has(room.id):
 				printerr("Room %d has no bounds! Skipping." % room.id)
 				growable_rooms.erase(room)
@@ -302,9 +299,7 @@ func grow_rooms() -> void:
 			
 			var room_bounds: Rect2i = _room_bounds[room.id]
 			
-			# check all directions
-			print("  bounds: ", room_bounds)
-			
+			# check all directions			
 			var start_points: Array[Vector2i] = [ #                reverse of check_direction
 				Vector2i(room_bounds.position.x, room_bounds.position.y) + Vector2i.UP,    # top (left)
 				Vector2i(room_bounds.end.x-1,    room_bounds.position.y) + Vector2i.UP,    # top (right)
@@ -318,26 +313,15 @@ func grow_rooms() -> void:
 			var growth_width: int = 0
 			var side_index: int = -1
 			for i in range(8):
-				if room.id==2 and (i==1 or i==2):
-					print("itteration: ", i, " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-				else:
-					print("itteration: ", i)
-					
 				var current_width: int = 0
 				var x: int = start_points[i].x
 				var y: int = start_points[i].y
 				# check if current cell is empty, and if still neighboring the room
 				var current_cell = get_cell(x,y)
 				var check_cell = get_cell(x+check_directions[i].x,y+check_directions[i].y)
-				print("  start_point: (", x,", ",y,")")
-				print("  start_direction: (", start_directions[i].x,", ",start_directions[i].y,")")
-				print("  check_direction: (", check_directions[i].x,", ",check_directions[i].y,")")
-				print("  while (not null): (",current_cell!=null," and ?????) and (",check_cell!=null," and ?????)")
 				if room.id==2 and i==1 :
 					print(current_cell.room_id)
 					print(check_cell.room_id)
-					print("  while: (",current_cell!=null," and ",current_cell.is_empty(),") and (",check_cell!=null," and ",check_cell.room_id==room.id,")")
-					print_grid()
 				while((current_cell!=null and current_cell.is_empty()) and (check_cell!=null and check_cell.room_id==room.id)):
 					current_width += 1
 					x += start_directions[i].x
@@ -349,8 +333,6 @@ func grow_rooms() -> void:
 					growth_width = current_width
 					side_index = i
 				
-				print("  growth_width: ", growth_width)
-			
 			if growth_width>grow_base.length():
 				grow_base = start_directions[side_index]*growth_width
 				grow_room = room
@@ -362,22 +344,98 @@ func grow_rooms() -> void:
 			var grow_rect: Rect2i = Rect2i(grow_start_pos, grow_base)
 			var next_grow_rect: Rect2i = grow_rect
 			next_grow_rect.size += grow_direction
-			print("  next_grow_rect: ", next_grow_rect)
 			while (_can_grow_rect(next_grow_rect)):
 				grow_rect = next_grow_rect
 				next_grow_rect.size += grow_direction
-				print("n++")
 			_fill_rect(grow_room.id, grow_rect)
 			growable_rooms.erase(grow_room)
 			print(grow_rect)
-			print("  grow_rect: ", grow_rect)
 		else:
 			break
 			
 	
 	# ----- Fill Empty Space -----
-	# TODO: Implement a fill algorithm (like BFS) to assign remaining
-	# empty cells to the nearest neighboring room
+	# Find all connected components of empty cells (holes)
+	var holes: Array[Array] = _find_empty_holes()  # Array of Array[Vector2i]
+	
+	for hole in holes:
+		if hole.is_empty():
+			continue
+			
+		# Count which room borders this hole the most
+		var border_counts: Dictionary = {}  # Dictionary[int, int] - room_id -> border_cell_count
+		
+		for pos in hole:
+			# Check all neighbors of this empty cell
+			for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+				var neighbor_pos: Vector2i = pos + dir
+				var neighbor_cell: FloorPlanCell = get_cell(neighbor_pos.x, neighbor_pos.y)
+				
+				# If neighbor is a room (not empty, not outside, not null)
+				if neighbor_cell != null and not neighbor_cell.is_empty() and not neighbor_cell.is_outside():
+					var room_id: int = neighbor_cell.room_id
+					if not border_counts.has(room_id):
+						border_counts[room_id] = 0
+					border_counts[room_id] += 1
+		
+		# Find the room with the most border cells
+		var max_border_count: int = 0
+		var dominant_room_id: int = -1
+		
+		for room_id in border_counts.keys():
+			if border_counts[room_id] > max_border_count:
+				max_border_count = border_counts[room_id]
+				dominant_room_id = room_id
+		
+		# Fill the hole with the dominant room
+		if dominant_room_id != -1:
+			for pos in hole:
+				var cell: FloorPlanCell = get_cell(pos.x, pos.y)
+				if cell != null and cell.is_empty():
+					cell.grow(dominant_room_id)
+
+
+## Find all connected components of empty cells using flood fill
+func _find_empty_holes() -> Array[Array]:
+	var visited: Array[Array] = _create_int_grid(0)  # 0 = not visited, 1 = visited
+	var holes: Array[Array] = []  # Array of Array[Vector2i]
+	
+	for y in range(height):
+		for x in range(width):
+			var cell: FloorPlanCell = get_cell(x, y)
+			
+			# Start flood fill from unvisited empty cells
+			if visited[y][x] == 0 and cell.is_empty():
+				var hole: Array[Vector2i] = []
+				var queue: Array[Vector2i] = [Vector2i(x, y)]
+				visited[y][x] = 1
+				
+				# BFS to find all connected empty cells
+				while not queue.is_empty():
+					var pos: Vector2i = queue.pop_front()
+					hole.append(pos)
+					
+					# Check all 4 neighbors
+					for dir in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+						var nx: int = pos.x + dir.x
+						var ny: int = pos.y + dir.y
+						
+						# Skip if out of bounds or already visited
+						if nx < 0 or nx >= width or ny < 0 or ny >= height:
+							continue
+						if visited[ny][nx] == 1:
+							continue
+						
+						var neighbor_cell: FloorPlanCell = get_cell(nx, ny)
+						
+						# Only continue flood fill if neighbor is also empty
+						if neighbor_cell.is_empty():
+							visited[ny][nx] = 1
+							queue.append(Vector2i(nx, ny))
+				
+				holes.append(hole)
+	
+	return holes
 
 
 ## Checks if all cells within a given rectangle are empty and growable
