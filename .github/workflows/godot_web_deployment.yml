@@ -13,7 +13,8 @@ on:
   workflow_dispatch:
 
 env:
-  GODOT_VERSION: 4.5.1
+  GODOT_VERSION: 4.5.11
+  PROJECT_PATH: .
 
 jobs:
   build_web:
