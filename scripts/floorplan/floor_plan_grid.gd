@@ -143,7 +143,7 @@ func place_rooms(rooms: Array[RoomArea]) -> void:
 	var dist_grid: Array[Array] = _get_outside_dists() # should be Array[Array[int]]
 
 	print("  dist_grid:")
-	debug_print_mat2(dist_grid)
+	#debug_print_mat2(dist_grid)
 	
 	var free_cells: int = _get_empty_cells()
 	
@@ -167,7 +167,7 @@ func place_rooms(rooms: Array[RoomArea]) -> void:
 			entropy.append(row)
 		
 		print("  entropy_grid:")
-		debug_print_mat2(entropy)
+		#debug_print_mat2(entropy)
 		
 		# TODO: do other calculations
 		#   - distance from other rooms
@@ -214,7 +214,7 @@ func grow_rooms() -> void:
 
 		# Ensure the room has bounds (it should have been set in place_rooms)
 		if not _room_bounds.has(room_to_grow.id):
-			printerr("Room %d has no bounds! Skipping." % room_to_grow.id)
+			printerr("Room ", room_to_grow.id, " has no bounds! Skipping.")
 			growable_rooms.erase(room_to_grow)
 			continue
 			
@@ -263,19 +263,130 @@ func grow_rooms() -> void:
 			
 	
 	# ----- L Shaped Growth ------
-	# TODO: Implement L-shaped growth for rooms that are stuck
+	growable_rooms = room_areas.duplicate()
 	
+	const start_directions: Array[Vector2i] = [
+		Vector2i.RIGHT,
+		Vector2i.LEFT,
+		Vector2i.DOWN,
+		Vector2i.UP,
+		Vector2i.LEFT,
+		Vector2i.RIGHT,
+		Vector2i.UP,
+		Vector2i.DOWN,
+	]
+	const check_directions: Array[Vector2i] = [
+		Vector2i.DOWN,
+		Vector2i.DOWN,
+		Vector2i.LEFT,
+		Vector2i.LEFT,
+		Vector2i.UP,
+		Vector2i.UP,
+		Vector2i.RIGHT,
+		Vector2i.RIGHT,
+	]
+	
+	while not growable_rooms.is_empty():
+		
+		var grow_base: Vector2i = Vector2i.ZERO
+		var grow_room: RoomArea
+		var grow_start_pos: Vector2i
+		var grow_direction: Vector2i
+		print("#########################################")
+		for room in growable_rooms:
+			print("----------------- room_", room.id, " -----------------")
+			if not _room_bounds.has(room.id):
+				printerr("Room %d has no bounds! Skipping." % room.id)
+				growable_rooms.erase(room)
+				continue
+			
+			var room_bounds: Rect2i = _room_bounds[room.id]
+			
+			# check all directions
+			print("  bounds: ", room_bounds)
+			
+			var start_points: Array[Vector2i] = [ #                reverse of check_direction
+				Vector2i(room_bounds.position.x, room_bounds.position.y) + Vector2i.UP,    # top (left)
+				Vector2i(room_bounds.end.x-1,    room_bounds.position.y) + Vector2i.UP,    # top (right)
+				Vector2i(room_bounds.end.x-1,    room_bounds.position.y) + Vector2i.RIGHT, # right (top)
+				Vector2i(room_bounds.end.x-1,    room_bounds.end.y-1)    + Vector2i.RIGHT, # right (bottom)
+				Vector2i(room_bounds.end.x-1,    room_bounds.end.y-1)    + Vector2i.DOWN,  # bottom (right)
+				Vector2i(room_bounds.position.x, room_bounds.end.y-1)    + Vector2i.DOWN,  # bottom (left)
+				Vector2i(room_bounds.position.x, room_bounds.end.y-1)    + Vector2i.LEFT,  # left (bottom)
+				Vector2i(room_bounds.position.x, room_bounds.position.y) + Vector2i.LEFT,  # left (top)
+			]
+			var growth_width: int = 0
+			var side_index: int = -1
+			for i in range(8):
+				if room.id==2 and (i==1 or i==2):
+					print("itteration: ", i, " ~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+				else:
+					print("itteration: ", i)
+					
+				var current_width: int = 0
+				var x: int = start_points[i].x
+				var y: int = start_points[i].y
+				# check if current cell is empty, and if still neighboring the room
+				var current_cell = get_cell(x,y)
+				var check_cell = get_cell(x+check_directions[i].x,y+check_directions[i].y)
+				print("  start_point: (", x,", ",y,")")
+				print("  start_direction: (", start_directions[i].x,", ",start_directions[i].y,")")
+				print("  check_direction: (", check_directions[i].x,", ",check_directions[i].y,")")
+				print("  while (not null): (",current_cell!=null," and ?????) and (",check_cell!=null," and ?????)")
+				if room.id==2 and i==1 :
+					print(current_cell.room_id)
+					print(check_cell.room_id)
+					print("  while: (",current_cell!=null," and ",current_cell.is_empty(),") and (",check_cell!=null," and ",check_cell.room_id==room.id,")")
+					print_grid()
+				while((current_cell!=null and current_cell.is_empty()) and (check_cell!=null and check_cell.room_id==room.id)):
+					current_width += 1
+					x += start_directions[i].x
+					y += start_directions[i].y
+					current_cell = get_cell(x,y)
+					check_cell = get_cell(x+check_directions[i].x,y+check_directions[i].y)
+				
+				if current_width>growth_width:
+					growth_width = current_width
+					side_index = i
+				
+				print("  growth_width: ", growth_width)
+			
+			if growth_width>grow_base.length():
+				grow_base = start_directions[side_index]*growth_width
+				grow_room = room
+				grow_start_pos = start_points[side_index]
+				grow_direction = -check_directions[side_index]
+		
+		if grow_base != Vector2i.ZERO:
+
+			var grow_rect: Rect2i = Rect2i(grow_start_pos, grow_base)
+			var next_grow_rect: Rect2i = grow_rect
+			next_grow_rect.size += grow_direction
+			print("  next_grow_rect: ", next_grow_rect)
+			while (_can_grow_rect(next_grow_rect)):
+				grow_rect = next_grow_rect
+				next_grow_rect.size += grow_direction
+				print("n++")
+			_fill_rect(grow_room.id, grow_rect)
+			growable_rooms.erase(grow_room)
+			print(grow_rect)
+			print("  grow_rect: ", grow_rect)
+		else:
+			break
+			
 	
 	# ----- Fill Empty Space -----
 	# TODO: Implement a fill algorithm (like BFS) to assign remaining
 	# empty cells to the nearest neighboring room
-	
 
 
 ## Checks if all cells within a given rectangle are empty and growable
-func _can_grow_rect(rect_to_check: Rect2i) -> bool:
-	for y in range(rect_to_check.position.y, rect_to_check.end.y):
-		for x in range(rect_to_check.position.x, rect_to_check.end.x):
+func _can_grow_rect(rect: Rect2i) -> bool:
+	var x_dir: int = -1 if rect.size.x<0 else 1
+	var y_dir: int = -1 if rect.size.y<0 else 1
+	
+	for y in range(rect.position.y, rect.end.y, y_dir):
+		for x in range(rect.position.x, rect.end.x, x_dir):
 			var cell: FloorPlanCell = get_cell(x, y)
 			if cell == null or not cell.is_empty():
 				return false
@@ -283,9 +394,12 @@ func _can_grow_rect(rect_to_check: Rect2i) -> bool:
 
 
 ## Sets all cells within a given rectangle to a specific room ID
-func _fill_rect(room_id: int, rect_to_fill: Rect2i) -> void:
-	for y in range(rect_to_fill.position.y, rect_to_fill.end.y):
-		for x in range(rect_to_fill.position.x, rect_to_fill.end.x):
+func _fill_rect(room_id: int, rect: Rect2i) -> void:
+	var x_dir: int = -1 if rect.size.x<0 else 1
+	var y_dir: int = -1 if rect.size.y<0 else 1
+	
+	for y in range(rect.position.y, rect.end.y, y_dir):
+		for x in range(rect.position.x, rect.end.x, x_dir):
 			var cell: FloorPlanCell = get_cell(x, y)
 			if cell != null:
 				cell.grow(room_id)
