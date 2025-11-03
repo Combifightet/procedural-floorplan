@@ -23,9 +23,9 @@ func _ready() -> void:
 	debug_rect.material.set_shader_parameter('container_size', debug_rect.size)
 	debug_rect.resized.connect(_on_debug_rect_resized)
 	
-	var connectivity: Dictionary[Vector2i, Array] = floorplan_gen.to_connectivity_dict()
+	var _connectivity: Dictionary[Vector2i, Array] = floorplan_gen.to_connectivity_dict()
 	print("\n\nconnectivity:")
-	print(connectivity)
+	print(_connectivity)
 	
 
 # Updates the 'container_size' uniform whenever the ColorRect is resized
