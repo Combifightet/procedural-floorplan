@@ -164,20 +164,20 @@ func place_rooms(rooms: Array[RoomArea]) -> void:
 				if dist_grid[y][x]<=0:
 					row.append(-1)
 				else:
-					row.append(abs(room_radius-dist_grid[y][x]))
+					var dist: int = room_radius-dist_grid[y][x]
+					#row.append(min(0, dist))
+					row.append(abs(dist))
 			entropy.append(row)
+		debug_print_mat2(entropy)
 		
 		# make rooms not be too close together
 		entropy = _combine_entropy(entropy, room_dist_entropy)
 		
 		# makes neighoring rooms be closer together
-		for id in room.connectivity:
-			print("  room dist: ", id)
-			debug_print_mat2(_get_room_dists(id))
-			for y in range(entropy.size()):
-				for x in range(entropy[y].size()):
-					entropy[y][x]*=4
-			entropy = _combine_entropy(entropy, _get_room_dists(id))
+		for y in range(entropy.size()):
+			for x in range(entropy[y].size()):
+				entropy[y][x]*=4 # TODO: check here
+		entropy = _combine_entropy(entropy, _get_room_dists(room.connectivity))
 		
 		
 		# select random from minimum
@@ -591,14 +591,14 @@ func _get_outside_dists() -> Array[Array]:
 	
 	return dist_grid
 
-func _get_room_dists(room_id: int) -> Array[Array]:
+func _get_room_dists(room_ids: Array[int]) -> Array[Array]:
 	var dist_grid: Array[Array] = _create_int_grid(-1)  # -1 means unvisited
 	var queue: Array[Vector2i] = []
 	
 	# Initialize: add all outside cells to queue with distance 0
 	for y in range(height):
 		for x in range(width):
-			if get_cell(x, y).room_id==room_id:
+			if room_ids.find(get_cell(x, y).room_id) >= 0:
 				dist_grid[y][x] = 0
 				queue.append(Vector2i(x, y))
 	
