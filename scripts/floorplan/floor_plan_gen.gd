@@ -195,6 +195,14 @@ func get_grid() -> FloorPlanGrid:
 
 ## Generates a new floor plan for a predefined building size
 func generate(size: HouseSize) -> void:
+	if _seed == -1:
+		randomize()
+		_last_seed = randi()
+		seed(_last_seed)
+	else:
+		_last_seed = _seed
+		seed(_seed)
+	
 	generate_custom(
 		_initial_vertecies[size],
 		_randomness[size],
@@ -204,6 +212,7 @@ func generate(size: HouseSize) -> void:
 
 ## Generates a new floor plan for a custom building.
 func generate_custom(initial_vertecies: int = 6, randomness: float = 0.6, radius: float = 6, room_count: int = 6) -> void:
+	print("############################## ", room_count)
 	print("generating floorplan ...")
 	if _seed == -1:
 		randomize()
@@ -232,7 +241,85 @@ func generate_custom(initial_vertecies: int = 6, randomness: float = 0.6, radius
 	_floorplan_grid.place_rooms(rooms)
 	print("  growing rooms ...")
 	_floorplan_grid.grow_rooms()
+	print("  placing doors ...")
+	#_generate_doors()
 	# print("  placing inner doors ...")
 	# print("  placing windows") # optional
 	# print("  placing entrance door")
 	# _floorplan_grid.print_grid()
+
+func _generate_doors():
+	var connectivity_dict: Dictionary[int, Array] = {}
+	var centers_dict: Dictionary[int, Vector2] = {}
+	var cell_count_dict: Dictionary[int, int] = {}
+	var grid: Array[Array] = _floorplan_grid.grid
+	var directions: Array[Vector2i] = [
+		Vector2i.LEFT,
+		Vector2i.UP,
+		Vector2i.RIGHT,
+		Vector2i.DOWN,
+	]
+	
+	for y in range(grid.size()):
+		for x in range(grid[y].size()):
+			var cell: FloorPlanCell = grid[y][x]
+			if cell.is_empty():
+				continue
+			if connectivity_dict.keys().find(cell.room_id) < 0:
+				connectivity_dict[cell.room_id] = []
+				centers_dict[cell.room_id] = Vector2.ZERO
+				cell_count_dict[cell.room_id] = 0
+			
+			centers_dict[cell.room_id] += Vector2(x, y)
+			cell_count_dict[cell.room_id] += 1 
+
+			for dir in directions:
+				var n_x: int = x+dir.x
+				var n_y: int = y+dir.y
+				if (n_x<0 or n_x>=_floorplan_grid.width) or (n_y<0 or n_y>=_floorplan_grid.width):
+					continue
+				var n_cell: FloorPlanCell = grid[n_y][n_x]
+				if n_cell.room_id == cell.room_id:
+					continue
+				if connectivity_dict[cell.room_id].find(n_cell.room_id) < 0:
+					connectivity_dict[cell.room_id].append(n_cell.room_id)
+	for key in centers_dict.keys():
+		centers_dict[key] /= cell_count_dict[key]
+	
+	
+	print("door connectivity:")
+	print(connectivity_dict)
+	
+
+func to_connectivity_dict() -> Dictionary[Vector2i, Array]:
+	var connectivity_dict: Dictionary[Vector2i, Array] = {}
+	# Test direction
+	var directions: Array[Vector2i] = [
+		Vector2i.LEFT+Vector2i.DOWN,
+		Vector2i.LEFT,
+		Vector2i.UP+Vector2i.LEFT,
+		Vector2i.UP,
+		Vector2i.RIGHT+Vector2i.UP,
+		Vector2i.RIGHT,
+		Vector2i.DOWN+Vector2i.RIGHT,
+		Vector2i.DOWN,
+	]
+	
+	var grid: Array[Array] = get_grid().grid
+	for y in range(grid.size()):
+		for x in range(grid[y].size()):
+			var cell: FloorPlanCell = grid[y][x]
+			if cell.is_empty():
+				continue
+			
+			connectivity_dict[Vector2i(x, y)] = []
+			
+			for dir in directions:
+				var n_x: int = x+dir.x
+				var n_y: int = y+dir.y
+				if n_x<0 or n_x>=grid[y].size() or n_y<0 or n_y>=grid.size():
+					continue
+				if cell.room_id == grid[n_y][n_x].room_id:
+					connectivity_dict[Vector2i(x,y)].append(Vector2i(n_x, n_y))
+	
+	return connectivity_dict
